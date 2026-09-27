@@ -15,7 +15,7 @@ Set in `src/lib/schedule.ts` and enforced in both the browser and the server:
 
 - `LEAD_DAYS`: days of notice required (default 2)
 - `CLOSED_DAYS`: days with no baking (default Sunday)
-- `DELIVERY_MINIMUM`: minimum order value for delivery (default $100; pickup has no minimum)
+- `DELIVERY_MINIMUM`: minimum order value for delivery (default £100; pickup has no minimum)
 - `DELIVERY_WINDOWS`: the delivery and pickup time slots
 
 Products, prices, units and minimums live in `src/data/products.ts`. The server always prices orders from this catalog, so it never trusts totals sent by the browser.

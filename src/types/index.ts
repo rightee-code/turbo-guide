@@ -4,7 +4,7 @@ export interface Product {
   id: string;
   name: string;
   description: string;
-  /** Wholesale price per unit, in dollars. */
+  /** Wholesale price per unit, in pounds. */
   price: number;
   /** What one unit is, e.g. "loaf" or "6-pack". */
   unit: string;

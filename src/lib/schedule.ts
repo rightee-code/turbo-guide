@@ -3,7 +3,7 @@
 /** Days of notice required between ordering and delivery. */
 export const LEAD_DAYS = 2;
 
-/** Minimum order value for delivery, in dollars. Pickup has no minimum. */
+/** Minimum order value for delivery, in pounds. Pickup has no minimum. */
 export const DELIVERY_MINIMUM = 100;
 
 /** Days of the week we do not bake (0 = Sunday). */
@@ -45,7 +45,7 @@ export function checkDeliveryDate(date: string, now = new Date()) {
 
 export function formatDate(date: string) {
   const [y, m, d] = date.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", {
     weekday: "short",
     month: "short",
     day: "numeric",
