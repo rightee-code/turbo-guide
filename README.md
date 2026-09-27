@@ -28,9 +28,28 @@ Products, prices, units and minimums live in `src/data/products.ts`. The server 
 ADMIN_PASSWORD=choose-something npm run dev
 ```
 
+## Running with Docker
+
+On any Linux machine with Docker and the Compose plugin:
+
+```bash
+git clone https://github.com/rightee-code/turbo-guide.git
+cd turbo-guide
+echo "ADMIN_PASSWORD=choose-something" > .env
+docker compose up -d --build
+```
+
+Open `http://localhost:3000`, or `http://<server-ip>:3000` from another device on your network. The bakery view is at `/admin`.
+
+- Orders are kept in the `orders` Docker volume, so they survive restarts and rebuilds. `docker compose down -v` deletes them.
+- To update: `git pull && docker compose up -d --build`
+- To see logs: `docker compose logs -f`
+- To back up orders: `docker compose cp web:/app/data/orders.json ./orders-backup.json`
+- To expose it on the internet, put it behind a reverse proxy with HTTPS (e.g. Caddy or nginx).
+
 ## Storage
 
-Orders are saved to `data/orders.json` (gitignored). That's fine on a single server or VM, but serverless hosts such as Vercel have ephemeral disks. Replace `listOrders` and `saveOrder` in `src/lib/orders.ts` with a database before deploying there.
+Orders are saved to `data/orders.json` (gitignored). That's fine on a single server or VM, including the Docker setup above, but serverless hosts such as Vercel have ephemeral disks. Replace `listOrders` and `saveOrder` in `src/lib/orders.ts` with a database before deploying there.
 
 ## Development
 
