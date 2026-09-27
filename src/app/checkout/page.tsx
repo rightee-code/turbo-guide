@@ -4,66 +4,110 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCart } from "@/context/CartContext";
+import { Fulfillment } from "@/types";
+import {
+  checkDeliveryDate,
+  DELIVERY_MINIMUM,
+  DELIVERY_WINDOWS,
+  earliestDeliveryDate,
+  LEAD_DAYS,
+  money,
+} from "@/lib/schedule";
 
-const PICKUP_TIMES = [
-  "8:00 AM",
-  "9:00 AM",
-  "10:00 AM",
-  "11:00 AM",
-  "12:00 PM",
-  "1:00 PM",
-  "2:00 PM",
-  "3:00 PM",
-  "4:00 PM",
-  "5:00 PM",
-];
+type Form = {
+  businessName: string;
+  contactName: string;
+  email: string;
+  phone: string;
+  fulfillment: Fulfillment;
+  address: string;
+  deliveryDate: string;
+  deliveryWindow: string;
+  poNumber: string;
+  notes: string;
+};
 
-function getMinPickupDate() {
-  const d = new Date();
-  d.setDate(d.getDate() + 2);
-  return d.toISOString().split("T")[0];
+type Errors = Partial<Record<keyof Form | "items", string>>;
+
+const inputClass = (error?: string) =>
+  `w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition ${
+    error ? "border-red-400" : "border-stone-200"
+  }`;
+
+function Field({
+  label,
+  error,
+  children,
+}: {
+  label: string;
+  error?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <label className="block">
+      <span className="block text-sm font-medium text-stone-700 mb-1">
+        {label}
+      </span>
+      {children}
+      {error && <span className="block text-red-500 text-xs mt-1">{error}</span>}
+    </label>
+  );
 }
 
 export default function CheckoutPage() {
-  const { items, totalPrice, clearCart } = useCart();
+  const { items, totalPrice, clearCart, belowMinimum } = useCart();
   const router = useRouter();
 
-  const [form, setForm] = useState({
-    customerName: "",
+  const [form, setForm] = useState<Form>({
+    businessName: "",
+    contactName: "",
     email: "",
     phone: "",
-    pickupDate: "",
-    pickupTime: "10:00 AM",
+    fulfillment: "delivery",
+    address: "",
+    deliveryDate: "",
+    deliveryWindow: DELIVERY_WINDOWS[1],
+    poNumber: "",
     notes: "",
   });
   const [submitting, setSubmitting] = useState(false);
-  const [errors, setErrors] = useState<Partial<typeof form>>({});
+  const [errors, setErrors] = useState<Errors>({});
+  const [formError, setFormError] = useState("");
 
   if (items.length === 0) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-        <p className="text-stone-500 mb-4">Your cart is empty.</p>
+        <p className="text-stone-500 mb-4">Your order is empty.</p>
         <Link
           href="/"
           className="inline-block bg-amber-700 text-white px-6 py-2.5 rounded-xl font-medium hover:bg-amber-600 transition-colors"
         >
-          Browse Menu
+          Go to order sheet
         </Link>
       </div>
     );
   }
 
+  const isDelivery = form.fulfillment === "delivery";
+  const underMinimum = isDelivery && totalPrice < DELIVERY_MINIMUM;
+
   function validate() {
-    const e: Partial<typeof form> = {};
-    if (!form.customerName.trim()) e.customerName = "Name is required";
-    if (!form.email.includes("@")) e.email = "Valid email is required";
+    const e: Errors = {};
+    if (!form.businessName.trim()) e.businessName = "Business name is required";
+    if (!form.contactName.trim()) e.contactName = "Contact name is required";
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      e.email = "Valid email is required";
     if (!form.phone.trim()) e.phone = "Phone number is required";
-    if (!form.pickupDate) e.pickupDate = "Pickup date is required";
+    if (isDelivery && !form.address.trim())
+      e.address = "Delivery address is required";
+    const dateError = checkDeliveryDate(form.deliveryDate);
+    if (dateError) e.deliveryDate = dateError;
     return e;
   }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    setFormError("");
     const errs = validate();
     if (Object.keys(errs).length) {
       setErrors(errs);
@@ -74,174 +118,219 @@ export default function CheckoutPage() {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, items, total: totalPrice }),
+        body: JSON.stringify({
+          ...form,
+          items: items.map((i) => ({
+            productId: i.product.id,
+            quantity: i.quantity,
+          })),
+        }),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         clearCart();
         router.push(`/order-confirmation?id=${data.orderId}`);
+        return;
       }
+      setErrors(data.fields ?? {});
+      setFormError(
+        data.fields?.items ?? data.error ?? "Something went wrong. Please try again."
+      );
+    } catch {
+      setFormError("Couldn't reach the bakery. Check your connection and try again.");
     } finally {
       setSubmitting(false);
     }
   }
 
-  function field(name: keyof typeof form, value: string) {
+  function field<K extends keyof Form>(name: K, value: Form[K]) {
     setForm((f) => ({ ...f, [name]: value }));
     if (errors[name]) setErrors((e) => ({ ...e, [name]: undefined }));
   }
 
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
-      <h2 className="text-2xl font-bold text-stone-800 mb-6">Checkout</h2>
+      <h2 className="text-2xl font-bold text-stone-800 mb-6">
+        Delivery details
+      </h2>
 
       <div className="bg-white rounded-2xl border border-amber-100 p-5 mb-6">
-        <h3 className="font-semibold text-stone-700 mb-3 text-sm uppercase tracking-wide">
-          Order Summary
-        </h3>
+        <div className="flex justify-between items-baseline mb-3">
+          <h3 className="font-semibold text-stone-700 text-sm uppercase tracking-wide">
+            Order summary
+          </h3>
+          <Link href="/cart" className="text-sm text-amber-700 hover:underline">
+            Edit
+          </Link>
+        </div>
         {items.map(({ product, quantity }) => (
           <div
             key={product.id}
             className="flex justify-between text-sm text-stone-600 mb-1"
           >
             <span>
-              {product.name} × {quantity}
+              {quantity} × {product.name}{" "}
+              <span className="text-stone-400">({product.unit})</span>
             </span>
-            <span>${(product.price * quantity).toFixed(2)}</span>
+            <span>{money(product.price * quantity)}</span>
           </div>
         ))}
         <div className="border-t border-amber-100 mt-3 pt-3 flex justify-between font-bold text-stone-800">
           <span>Total</span>
-          <span>${totalPrice.toFixed(2)}</span>
+          <span>{money(totalPrice)}</span>
         </div>
+        <p className="text-xs text-stone-400 mt-2">
+          Invoiced on net-15 terms. Prices exclude any applicable tax.
+        </p>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-4">
+      <form onSubmit={handleSubmit} noValidate className="space-y-4">
         <div className="bg-white rounded-2xl border border-amber-100 p-5 space-y-4">
           <h3 className="font-semibold text-stone-700 text-sm uppercase tracking-wide">
-            Your Details
+            Business
           </h3>
-
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Full Name
-            </label>
+          <Field label="Business name" error={errors.businessName}>
             <input
-              type="text"
-              value={form.customerName}
-              onChange={(e) => field("customerName", e.target.value)}
-              placeholder="Andy Smith"
-              className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition ${
-                errors.customerName ? "border-red-400" : "border-stone-200"
-              }`}
+              value={form.businessName}
+              onChange={(e) => field("businessName", e.target.value)}
+              placeholder="Corner Café"
+              autoComplete="organization"
+              className={inputClass(errors.businessName)}
             />
-            {errors.customerName && (
-              <p className="text-red-500 text-xs mt-1">{errors.customerName}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Email
-            </label>
-            <input
-              type="email"
-              value={form.email}
-              onChange={(e) => field("email", e.target.value)}
-              placeholder="andy@example.com"
-              className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition ${
-                errors.email ? "border-red-400" : "border-stone-200"
-              }`}
-            />
-            {errors.email && (
-              <p className="text-red-500 text-xs mt-1">{errors.email}</p>
-            )}
-          </div>
-
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Phone
-            </label>
-            <input
-              type="tel"
-              value={form.phone}
-              onChange={(e) => field("phone", e.target.value)}
-              placeholder="(555) 123-4567"
-              className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition ${
-                errors.phone ? "border-red-400" : "border-stone-200"
-              }`}
-            />
-            {errors.phone && (
-              <p className="text-red-500 text-xs mt-1">{errors.phone}</p>
-            )}
+          </Field>
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field label="Contact name" error={errors.contactName}>
+              <input
+                value={form.contactName}
+                onChange={(e) => field("contactName", e.target.value)}
+                autoComplete="name"
+                className={inputClass(errors.contactName)}
+              />
+            </Field>
+            <Field label="PO number (optional)">
+              <input
+                value={form.poNumber}
+                onChange={(e) => field("poNumber", e.target.value)}
+                className={inputClass()}
+              />
+            </Field>
+            <Field label="Email" error={errors.email}>
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => field("email", e.target.value)}
+                autoComplete="email"
+                className={inputClass(errors.email)}
+              />
+            </Field>
+            <Field label="Phone" error={errors.phone}>
+              <input
+                type="tel"
+                value={form.phone}
+                onChange={(e) => field("phone", e.target.value)}
+                autoComplete="tel"
+                className={inputClass(errors.phone)}
+              />
+            </Field>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl border border-amber-100 p-5 space-y-4">
           <h3 className="font-semibold text-stone-700 text-sm uppercase tracking-wide">
-            Pickup Details
+            Fulfillment
           </h3>
-          <p className="text-stone-400 text-xs">
-            Orders require at least 48 hours notice.
-          </p>
+          <div className="grid grid-cols-2 gap-2">
+            {(["delivery", "pickup"] as const).map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                onClick={() => field("fulfillment", opt)}
+                aria-pressed={form.fulfillment === opt}
+                className={`rounded-xl border px-3 py-2.5 text-sm font-medium transition-colors ${
+                  form.fulfillment === opt
+                    ? "bg-amber-700 border-amber-700 text-white"
+                    : "bg-white border-stone-200 text-stone-600 hover:border-amber-400"
+                }`}
+              >
+                {opt === "delivery" ? "🚚 Delivery" : "🏪 Pick up at bakery"}
+              </button>
+            ))}
+          </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Pickup Date
-              </label>
+          {underMinimum && (
+            <p className="text-sm bg-amber-50 text-amber-800 rounded-xl p-3">
+              Delivery requires a {money(DELIVERY_MINIMUM)} minimum. Add{" "}
+              {money(DELIVERY_MINIMUM - totalPrice)} more, or choose pickup.
+            </p>
+          )}
+
+          {isDelivery && (
+            <Field label="Delivery address" error={errors.address}>
+              <textarea
+                value={form.address}
+                onChange={(e) => field("address", e.target.value)}
+                rows={2}
+                autoComplete="street-address"
+                placeholder="Street, city, and any dock or back-door instructions"
+                className={`${inputClass(errors.address)} resize-none`}
+              />
+            </Field>
+          )}
+
+          <div className="grid sm:grid-cols-2 gap-4">
+            <Field
+              label={isDelivery ? "Delivery date" : "Pickup date"}
+              error={errors.deliveryDate}
+            >
               <input
                 type="date"
-                value={form.pickupDate}
-                min={getMinPickupDate()}
-                onChange={(e) => field("pickupDate", e.target.value)}
-                className={`w-full border rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition ${
-                  errors.pickupDate ? "border-red-400" : "border-stone-200"
-                }`}
+                value={form.deliveryDate}
+                min={earliestDeliveryDate()}
+                onChange={(e) => field("deliveryDate", e.target.value)}
+                className={inputClass(errors.deliveryDate)}
               />
-              {errors.pickupDate && (
-                <p className="text-red-500 text-xs mt-1">{errors.pickupDate}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-stone-700 mb-1">
-                Pickup Time
-              </label>
+            </Field>
+            <Field label={isDelivery ? "Delivery window" : "Pickup window"}>
               <select
-                value={form.pickupTime}
-                onChange={(e) => field("pickupTime", e.target.value)}
-                className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition"
+                value={form.deliveryWindow}
+                onChange={(e) => field("deliveryWindow", e.target.value)}
+                className={inputClass()}
               >
-                {PICKUP_TIMES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
+                {DELIVERY_WINDOWS.map((w) => (
+                  <option key={w} value={w}>
+                    {w}
                   </option>
                 ))}
               </select>
-            </div>
+            </Field>
           </div>
+          <p className="text-stone-400 text-xs">
+            {LEAD_DAYS} days&apos; notice required. We bake Monday–Saturday.
+          </p>
 
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1">
-              Special Requests (optional)
-            </label>
+          <Field label="Notes for the bakery (optional)">
             <textarea
               value={form.notes}
               onChange={(e) => field("notes", e.target.value)}
-              placeholder="Any special requests or instructions..."
+              placeholder="Slicing requests, substitutions, standing order changes…"
               rows={3}
-              className="w-full border border-stone-200 rounded-xl px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-amber-400 transition resize-none"
+              className={`${inputClass()} resize-none`}
             />
-          </div>
+          </Field>
         </div>
+
+        {formError && (
+          <p className="bg-red-50 text-red-600 rounded-xl p-3 text-sm">
+            {formError}
+          </p>
+        )}
 
         <button
           type="submit"
-          disabled={submitting}
+          disabled={submitting || underMinimum || belowMinimum.length > 0}
           className="w-full bg-amber-700 hover:bg-amber-600 disabled:bg-amber-300 text-white py-3 rounded-xl font-semibold text-lg transition-colors"
         >
-          {submitting ? "Placing Order..." : "Place Order"}
+          {submitting ? "Submitting order…" : `Submit order · ${money(totalPrice)}`}
         </button>
       </form>
     </div>

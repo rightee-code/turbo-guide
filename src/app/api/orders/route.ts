@@ -1,30 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { buildOrder, saveOrder } from "@/lib/orders";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-
-  const { customerName, email, phone, pickupDate, pickupTime, notes, items, total } = body;
-
-  if (!customerName || !email || !phone || !pickupDate || !items?.length) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+  if (!body || typeof body !== "object") {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const order = {
-    id: randomUUID().slice(0, 8).toUpperCase(),
-    customerName,
-    email,
-    phone,
-    pickupDate,
-    pickupTime,
-    notes,
-    items,
-    total,
-    createdAt: new Date().toISOString(),
-  };
+  const result = buildOrder(body as Record<string, unknown>);
+  if ("errors" in result) {
+    return NextResponse.json(
+      { error: "Please fix the highlighted fields", fields: result.errors },
+      { status: 400 }
+    );
+  }
 
-  // In production this would persist to a database.
-  console.log("New order:", JSON.stringify(order, null, 2));
-
-  return NextResponse.json({ orderId: order.id }, { status: 201 });
+  await saveOrder(result.order);
+  return NextResponse.json({ orderId: result.order.id }, { status: 201 });
 }
