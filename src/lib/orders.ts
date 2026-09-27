@@ -100,7 +100,7 @@ export function buildOrder(
   const total =
     Math.round(lines.reduce((sum, l) => sum + l.lineTotal, 0) * 100) / 100;
   if (fulfillment === "delivery" && lines.length && total < DELIVERY_MINIMUM)
-    errors.items = `Delivery orders have a $${DELIVERY_MINIMUM} minimum`;
+    errors.items = `Delivery orders have a £${DELIVERY_MINIMUM} minimum`;
 
   if (Object.keys(errors).length) return { errors };
 
