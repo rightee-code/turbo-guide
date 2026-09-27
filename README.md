@@ -39,8 +39,9 @@ echo "ADMIN_PASSWORD=choose-something" > .env
 docker compose up -d --build
 ```
 
-Open `http://localhost:3000`, or `http://<server-ip>:3000` from another device on your network. The bakery view is at `/admin`.
+Open `http://localhost:3080`, or `http://<server-ip>:3080` from another device on your network. The bakery view is at `/admin`.
 
+- To use a different port, add `APP_PORT=8123` (or any free port) to `.env` and run `docker compose up -d` again.
 - Orders are kept in the `orders` Docker volume, so they survive restarts and rebuilds. `docker compose down -v` deletes them.
 - To update: `git pull && docker compose up -d --build`
 - To see logs: `docker compose logs -f`

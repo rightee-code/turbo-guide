@@ -2,7 +2,8 @@ services:
   web:
     build: .
     ports:
-      - "3000:3000"
+      # Port on your machine. Change APP_PORT in .env if 3080 is taken.
+      - "${APP_PORT:-3080}:3000"
     environment:
       # Password for the /admin page. Set it in a .env file next to this one.
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
