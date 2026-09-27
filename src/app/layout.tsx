@@ -4,9 +4,9 @@ import { CartProvider } from "@/context/CartContext";
 import Header from "@/components/Header";
 
 export const metadata: Metadata = {
-  title: "Andy's Bread — Artisan Bakery",
+  title: "Andy's Bread Wholesale",
   description:
-    "Order fresh artisan breads from Andy's Bakery. Sourdough, challah, focaccia, and more — baked daily.",
+    "Wholesale ordering for cafés, restaurants and grocers. Sourdough, baguettes, rolls and more — baked fresh for delivery.",
 };
 
 export default function RootLayout({
@@ -22,7 +22,7 @@ export default function RootLayout({
           <main className="flex-1">{children}</main>
           <footer className="bg-amber-900 text-amber-200 text-center text-sm py-6 mt-12">
             <p className="font-semibold text-white mb-1">Andy&apos;s Bread</p>
-            <p>Baked fresh daily • Orders due 48 hours in advance</p>
+            <p>Wholesale bread for cafés, restaurants &amp; grocers • 2 days&apos; notice</p>
           </footer>
         </CartProvider>
       </body>

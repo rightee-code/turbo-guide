@@ -1,0 +1,15 @@
+services:
+  web:
+    build: .
+    ports:
+      # Port on your machine. Change APP_PORT in .env if 3080 is taken.
+      - "${APP_PORT:-3080}:3000"
+    environment:
+      # Password for the /admin page. Set it in a .env file next to this one.
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env}
+    volumes:
+      - orders:/app/data
+    restart: unless-stopped
+
+volumes:
+  orders:
